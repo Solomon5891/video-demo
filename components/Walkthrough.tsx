@@ -7,25 +7,26 @@ import {
   TrendingUp, Trophy, RefreshCw, Globe2, Sparkles,
 } from 'lucide-react';
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3 | 4;
 
 const STEPS = [
-  { key: 'speak',   label: '4A · Speak the job' },
-  { key: 'invoice', label: '4B · Invoice generated' },
-  { key: 'qr',      label: '4C · QR-code payment' },
-  { key: 'confirm', label: '4D · Real-time confirmation' },
+  { key: 'speak',     label: '4A · Speak the job' },
+  { key: 'invoice',   label: '4B · Invoice generated' },
+  { key: 'languages', label: '4C · Any language' },
+  { key: 'qr',        label: '4D · QR-code payment' },
+  { key: 'confirm',   label: '4E · Real-time confirmation' },
 ] as const;
 
 const TRANSCRIPT_EN =
   'Replaced outdoor condenser unit, 3 ton. Added R-410A refrigerant. Total 2.5 hours at customer site.';
 const TRANSCRIPT_ES =
-  'Reemplacé la unidad condensadora exterior, 3 toneladas. Agregué refrigerante R-410A. Total 2.5 horas en sitio.';
+  'Reemplacé la unidad de condensador exterior, 3 toneladas. Agregué refrigerante R-410A. Total 2.5 horas en el sitio del cliente.';
 
 const waveBars = Array.from({ length: 22 }, (_, i) => 0.35 + ((i * 37) % 11) / 16);
 
 export default function Walkthrough() {
   const [step, setStep] = useState<Step>(0);
-  const [lang, setLang] = useState<'en' | 'es'>('en');
+  const [lang, setLang] = useState<'en' | 'es'>('es');
   const [typed, setTyped] = useState('');
   const [autoplay, setAutoplay] = useState(true);
   const inViewRef = useRef<HTMLDivElement | null>(null);
@@ -64,12 +65,44 @@ export default function Walkthrough() {
   // Auto-advance the steps
   useEffect(() => {
     if (!started || !autoplay) return;
-    const durations = [5200, 4200, 4200, 4500];
+    const durations = [5200, 4200, 5500, 4200, 4500];
     const id = setTimeout(() => {
-      setStep(((step + 1) % 4) as Step);
+      setStep(((step + 1) % 5) as Step);
     }, durations[step]);
     return () => clearTimeout(id);
   }, [step, started, autoplay]);
+
+  // Silent keyboard control (great for screen recording)
+  //   PageDown / ArrowRight / Space  → next step
+  //   PageUp   / ArrowLeft           → previous step
+  //   1–4                            → jump to that step
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const next = () => { setAutoplay(false); setStep(((step + 1) % 5) as Step); };
+      const prev = () => { setAutoplay(false); setStep(((step + 4) % 5) as Step); };
+      const jump = (n: Step) => { setAutoplay(false); setStep(n); };
+
+      switch (e.key) {
+        case 'PageDown':
+        case 'ArrowRight':
+        case ' ':
+          e.preventDefault(); next(); break;
+        case 'PageUp':
+        case 'ArrowLeft':
+          e.preventDefault(); prev(); break;
+        case '1': jump(0); break;
+        case '2': jump(1); break;
+        case '3': jump(2); break;
+        case '4': jump(3); break;
+        case '5': jump(4); break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [step]);
 
   const replay = () => {
     setStep(0);
@@ -113,6 +146,9 @@ export default function Walkthrough() {
             <RefreshCw className="h-3 w-3" /> Replay
           </button>
         </div>
+        <div className="mt-3 text-center text-[11px] text-slate-400">
+          Tip: press <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-mono">PageDn</kbd> / <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-mono">→</kbd> to advance · <kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-mono">1</kbd>–<kbd className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-mono">5</kbd> to jump
+        </div>
 
         {/* Stage */}
         <div className="mt-10 rounded-3xl border border-slate-200 bg-white shadow-soft overflow-hidden">
@@ -123,11 +159,18 @@ export default function Walkthrough() {
               <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-brand/20 blur-3xl" aria-hidden />
               <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-amber-500/20 blur-3xl" aria-hidden />
 
-              <AnimatePresence mode="wait">
-                {step === 0 && <SpeakScene key="speak" typed={typed} lang={lang} setLang={setLang} />}
-                {step === 1 && <InvoiceScene key="invoice" lang={lang} />}
-                {step === 2 && <QRScene key="qr" />}
-                {step === 3 && <ConfirmScene key="confirm" />}
+              <AnimatePresence mode="wait" initial={false}>
+                {step === 0 ? (
+                  <SpeakScene key="speak" typed={typed} lang={lang} setLang={setLang} />
+                ) : step === 1 ? (
+                  <InvoiceScene key="invoice" lang={lang} />
+                ) : step === 2 ? (
+                  <LanguagesScene key="languages" />
+                ) : step === 3 ? (
+                  <QRScene key="qr" />
+                ) : (
+                  <ConfirmScene key="confirm" />
+                )}
               </AnimatePresence>
             </div>
 
@@ -157,17 +200,29 @@ export default function Walkthrough() {
                     <Explainer
                       kicker="Step 2 · Generate"
                       title="An invoice — in 5 seconds."
-                      body="FieldTech matches parts to your catalog, applies your labor rate, calculates tax, and brands the invoice with your logo. Ready to send."
+                      body="FieldTech matches parts to your catalog, applies your labor rate, calculates tax, and brands the invoice with your logo. Invoices always render in English, even when the voice note isn't."
                       bullets={[
                         'Pulls from your parts catalog automatically',
                         'Applies regional tax + service fees',
-                        'Localized currency & language per customer',
+                        'Auto-translates voice → English invoice',
                       ]}
                     />
                   )}
                   {step === 2 && (
                     <Explainer
-                      kicker="Step 3 · Get paid"
+                      kicker="Step 3 · Any language"
+                      title="One voice. Any language. One invoice."
+                      body="Your tech speaks Spanish, Portuguese, Arabic, Tagalog — any of 12 supported languages. FieldTech translates, itemizes, and always delivers the invoice in English, so your books, your CRM, and your accountant stay aligned."
+                      bullets={[
+                        '12 languages, including Arabic (RTL) and Tagalog',
+                        'Invoices always normalized to English for your books',
+                        '40 countries · one source of truth',
+                      ]}
+                    />
+                  )}
+                  {step === 3 && (
+                    <Explainer
+                      kicker="Step 4 · Get paid"
                       title="Scan. Tap. Paid."
                       body="Every FieldTech invoice ships with a scannable QR code. Customers pay in seconds via Stripe, PayPal, Venmo, and 15+ gateways — no app, no login."
                       bullets={[
@@ -177,9 +232,9 @@ export default function Walkthrough() {
                       ]}
                     />
                   )}
-                  {step === 3 && (
+                  {step === 4 && (
                     <Explainer
-                      kicker="Step 4 · Confirm"
+                      kicker="Step 5 · Confirm"
                       title="Real-time confirmation. Everywhere."
                       body="The moment payment clears, your dashboard, your CRM, and your leaderboard all update. Your team sees the win in real time."
                       bullets={[
@@ -300,18 +355,19 @@ function SpeakScene({
 }
 
 function InvoiceScene({ lang }: { lang: 'en' | 'es' }) {
-  const labels =
-    lang === 'en'
-      ? { inv: 'Invoice', items: [
-          { name: 'Condenser unit (3-ton)', v: '$2,400.00' },
-          { name: 'R-410A refrigerant', v: '$180.00' },
-          { name: 'Labor (2.5h @ $130/h)', v: '$325.00' },
-        ], total: 'Total', from: 'From', to: 'Bill to', powered: 'Powered by FieldTech' }
-      : { inv: 'Factura', items: [
-          { name: 'Unidad condensadora (3t)', v: '$2,400.00' },
-          { name: 'Refrigerante R-410A', v: '$180.00' },
-          { name: 'Mano de obra (2.5h)', v: '$325.00' },
-        ], total: 'Total', from: 'De', to: 'Para', powered: 'Hecho con FieldTech' };
+  const labels = {
+    inv: 'Invoice',
+    items: [
+      { name: 'Condenser unit (3-ton)', v: '$2,400.00' },
+      { name: 'R-410A refrigerant', v: '$180.00' },
+      { name: 'Labor (2.5h @ $130/h)', v: '$325.00' },
+    ],
+    total: 'Total',
+    from: 'From',
+    to: 'Bill to',
+    powered: 'Powered by FieldTech',
+  };
+  const sourceLang = lang === 'es' ? 'Spanish' : 'English';
 
   return (
     <motion.div
@@ -330,6 +386,18 @@ function InvoiceScene({ lang }: { lang: 'en' | 'es' }) {
       >
         <Loader2 className="h-8 w-8 text-orange-400 animate-spin" />
         <div className="mt-3 text-xs text-slate-300">Generating invoice…</div>
+      </motion.div>
+
+      {/* Auto-translate badge */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 1.0 }}
+        className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1.5 rounded-full bg-slate-900 text-white px-3 py-1.5 text-[10px] font-bold shadow-xl border border-slate-700 whitespace-nowrap"
+        title="Works in 12 languages – speak in your language, invoice in English."
+      >
+        <Globe2 className="h-3 w-3 text-orange-400" />
+        Auto-generated in English from {sourceLang} voice note
       </motion.div>
 
       <motion.div
@@ -391,6 +459,129 @@ function InvoiceScene({ lang }: { lang: 'en' | 'es' }) {
             <Sparkles className="h-3.5 w-3.5" /> {labels.powered}
           </span>
           <span className="text-slate-500">en · es · pt · fr · de · ar +7</span>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function LanguagesScene() {
+  const voices = [
+    {
+      code: 'ES',
+      flag: '🇪🇸',
+      label: 'Spanish',
+      text: 'Reemplacé la unidad de condensador exterior, 3 toneladas.',
+    },
+    {
+      code: 'PT',
+      flag: '🇵🇹',
+      label: 'Portuguese',
+      text: 'Substituí a unidade condensadora externa, 3 toneladas.',
+    },
+    {
+      code: 'AR',
+      flag: '🇸🇦',
+      label: 'Arabic',
+      rtl: true,
+      text: 'استبدلت وحدة المكثف الخارجية، 3 طن.',
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.45 }}
+      className="w-full max-w-[460px] flex flex-col items-center"
+    >
+      <div className="inline-flex items-center gap-2 rounded-full bg-slate-800/80 border border-slate-700 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-orange-300">
+        <Globe2 className="h-3.5 w-3.5" /> 12 languages · 40 countries
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2 w-full">
+        {voices.map((v, i) => (
+          <motion.div
+            key={v.code}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.1 + i * 0.12 }}
+            className="rounded-xl bg-slate-800/70 border border-slate-700 p-2.5"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-base leading-none">{v.flag}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-orange-300">{v.code}</span>
+            </div>
+            <div className="mt-2 flex items-end gap-[2px] h-3">
+              {Array.from({ length: 14 }).map((_, j) => (
+                <span
+                  key={j}
+                  className="w-[2px] rounded-full bg-orange-400/80 animate-wave"
+                  style={{
+                    height: `${30 + ((j * 17 + i * 11) % 70)}%`,
+                    animationDelay: `${j * 50 + i * 80}ms`,
+                  }}
+                />
+              ))}
+            </div>
+            <p
+              dir={v.rtl ? 'rtl' : 'ltr'}
+              className="mt-2 text-[10px] leading-snug text-slate-300"
+            >
+              {v.text}
+            </p>
+          </motion.div>
+        ))}
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.55 }}
+        className="mt-3 w-48"
+      >
+        <svg viewBox="0 0 200 36" className="w-full h-9">
+          <defs>
+            <linearGradient id="conv" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(251,146,60,0.15)" />
+              <stop offset="100%" stopColor="rgba(251,146,60,0.95)" />
+            </linearGradient>
+          </defs>
+          <path d="M 30,0 Q 30,20 100,32" stroke="url(#conv)" strokeWidth="1.5" fill="none" strokeDasharray="3 3" />
+          <path d="M 100,0 L 100,32" stroke="url(#conv)" strokeWidth="1.5" fill="none" strokeDasharray="3 3" />
+          <path d="M 170,0 Q 170,20 100,32" stroke="url(#conv)" strokeWidth="1.5" fill="none" strokeDasharray="3 3" />
+        </svg>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, delay: 0.7 }}
+        className="inline-flex items-center gap-1.5 rounded-full bg-brand text-white px-3 py-1.5 text-[11px] font-bold shadow-lg shadow-brand/40"
+      >
+        <Sparkles className="h-3.5 w-3.5" /> FieldTech · Translate &amp; itemize
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.95 }}
+        className="mt-4 rounded-xl bg-white shadow-2xl p-3.5 w-full max-w-[300px] border border-slate-200"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 text-orange-700 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest">
+              <Globe2 className="h-2.5 w-2.5" /> EN
+            </span>
+            <span className="text-[10px] font-bold text-slate-500">Invoice #1429</span>
+          </div>
+          <span className="text-[11px] font-black text-slate-900">$2,905.00</span>
+        </div>
+        <div className="mt-2 space-y-1 text-[10px]">
+          <div className="flex justify-between text-slate-700"><span>Condenser unit (3-ton)</span><span className="font-semibold">$2,400.00</span></div>
+          <div className="flex justify-between text-slate-700"><span>R-410A refrigerant</span><span className="font-semibold">$180.00</span></div>
+          <div className="flex justify-between text-slate-700"><span>Labor (2.5h)</span><span className="font-semibold">$325.00</span></div>
         </div>
       </motion.div>
     </motion.div>
